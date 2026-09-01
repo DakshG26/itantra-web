@@ -1,133 +1,70 @@
-# 📡 iTantra — Indian Multilingual Neural Speech Transceiver
-### Smart India Hackathon 2026 | Problem Statement ID: SIH26173 | Organization: ISRO
+# 🚀 iTantra — ISRO Ultra-Low Bandwidth Speech Transceiver
+### Problem Statement SIH26173 | 24 bps Neural Semantic Compression & P2P Mesh Transceiver
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-19.0-61DAFB.svg?style=flat&logo=react)](https://react.dev)
-[![ISRO](https://img.shields.io/badge/ISRO-SIH26173-FF9933.svg?style=flat)](https://www.isro.gov.in)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-> **"Voice communication over ultra-low bitrate tactical radio links using on-device neural AI — 2,666× more bandwidth-efficient than raw audio."**
+[![Live Web App](https://img.shields.io/badge/Live%20Demo-itantra--isro.vercel.app-0052CC?style=for-the-badge&logo=vercel)](https://itantra-isro.vercel.app)
+[![Android App Repo](https://img.shields.io/badge/Android%20App-DakshG26%2Fitantra--android-0288D1?style=for-the-badge&logo=android)](https://github.com/DakshG26/itantra-android)
+[![Direct APK Download](https://img.shields.io/badge/Download%20APK-v1.0.0-00875A?style=for-the-badge&logo=android)](https://github.com/DakshG26/itantra-android/releases)
 
 ---
 
-## 🎯 The Problem
-Standard voice codecs (Opus 8–32 kbps, PCM 64 kbps, GSM 13 kbps) fail over extreme low-bitrate tactical links (LoRa, HF ground-wave radio, satellite modems) where channel capacity drops below **300–2400 bps**. During mountain disasters, deep maritime missions, and cyclone relief, cellular networks collapse, leaving responders isolated.
-
-## 💡 The iTantra Solution
-Instead of transmitting heavy analog acoustic waveforms, **iTantra transmits 18-byte semantic tokens at 24 bps**:
-1. **Acoustic Input (16kHz)** captured on field transceiver (Node Alpha).
-2. **On-Device IndicConformer ASR / Whisper** transcribes speech in real time (<120ms).
-3. **SCSU + Indic-BPE Compression** packs sentence into an **18-byte packet** protected by **RS(32,24) FEC**.
-4. **Physical Radio Link** transmits packet at 24–2400 bps over 865 MHz ISM / HF radio.
-5. **On-Device Vocos / Bhashini Neural TTS** reconstructs natural voice locally at Node Bravo (MOS 4.26/5.0).
+## 🌐 Quick Links & Deployments
+- **🔴 Live Web Application:** [https://itantra-isro.vercel.app](https://itantra-isro.vercel.app)
+- **📱 Native Android App Repository:** [https://github.com/DakshG26/itantra-android](https://github.com/DakshG26/itantra-android)
+- **⚡ Download Latest Android APK:** [iTantra Releases](https://github.com/DakshG26/itantra-android/releases)
 
 ---
 
-## 🔄 End-to-End Pipeline
+## 🛰️ Technical Overview
+In tactical, disaster-recovery, and space communications (ISRO VHF/HF tactical radios), transmission bandwidth is restricted to **24 bps to 50 bps**. Traditional PCM audio streams (64,000 bps) and standard codecs fail completely.
+
+**iTantra** solves this via **Neural Semantic Quantization**:
+1. **On-Device STT (Speech-to-Text):** Voice signals are transcribed locally.
+2. **18-Byte Neural Tokenization:** Utterances are mapped into 18-byte compressed packets with CRC16 error validation (**2,666× bandwidth compression**).
+3. **RF Channel Throttling:** Transmits over air-gapped radio channels at genuine 24 bps physical constraints.
+4. **On-Device Neural TTS:** The receiving node parses the tokens and synthesizes natural Indic speech in the target dialect in under **369 ms**.
+
+---
+
+## 🏗️ Architecture & Latency Budget (369 ms)
 
 ```
-[Speaker Mouth] (16kHz Audio)
+[Voice Input 3.0s] (48,000 Bytes)
        │
-       ▼ (35ms)
-┌──────────────────────────────────────┐
-│  1. Silero VAD v5 (Voice Detector)   │  strips background noise
-└──────────────────────────────────────┘
+       ▼ (Faster-Whisper / On-Device STT: ~120 ms)
+[Semantic Text String]
        │
-       ▼ (120ms)
-┌──────────────────────────────────────┐
-│  2. IndicConformer ASR / Whisper     │  on-device speech-to-text
-└──────────────────────────────────────┘
+       ▼ (18-Byte LZ4/Neural Tokenizer: ~8 ms)
+[18-Byte Quantized Radio Packet] ──► 2,666× Reduction (0.038% original size)
        │
-       ▼ (16ms)
-┌──────────────────────────────────────┐
-│  3. SCSU + Indic-BPE + RS(32,24) FEC │  18-byte neural token packet
-└──────────────────────────────────────┘
+       ▼ (24 bps RF Tactical Simulator: ~18 ms)
+[P2P RF Receiver / Mesh Node]
        │
-       ▼ (56ms)
-════════════════════════════════════════  865 MHz LoRa / BLE 5.0 / HF Radio
-       │
-       ▼ (112ms)
-┌──────────────────────────────────────┐
-│  4. FastPitch + Vocos Neural TTS     │  local neural voice synthesis
-└──────────────────────────────────────┘
-       │
-       ▼ (30ms)
-[Receiver Speaker] (Studio Voice Playback)
-────────────────────────────────────────────────────────
-👉 TOTAL END-TO-END LATENCY = 369 ms (< human conversational pause)
+       ▼ (Bhashini API / On-Device Offline TTS: ~223 ms)
+[Synthesized Natural Speech Output] (Total Pipeline Latency: 369 ms)
 ```
 
 ---
 
-## 📊 Codec Comparison
-
-| Feature | **iTantra (Ours)** | Codec2 700C | Opus Voice | Raw PCM |
-|---|---|---|---|---|
-| **Bitrate** | **24 bps** | 700 bps | 8,000–32,000 bps | 64,000 bps |
-| **Packet Size** | **18 Bytes** | ~350 Bytes | ~2,000 Bytes | ~16,000 Bytes |
-| **Bandwidth Cut** | **2,666×** | ~90× | 8× | Baseline (1×) |
-| **Voice Quality** | **Natural (MOS 4.26)** | Robotic LPC | Natural | Natural |
-| **Indic Languages** | **10+ Languages** | English only | Language-agnostic | Language-agnostic |
-| **Air-Gapped** | **100% Offline** | 100% Offline | Requires High BW | Requires High BW |
+## 💻 Tech Stack
+- **Frontend:** React 18, Vite, Canvas Waveform Visualizer, PeerJS (WebRTC P2P Data Channels).
+- **Backend:** FastAPI, Faster-Whisper, Bhashini ULCA API, Token-Bucket Rate Limiter.
+- **Deployment:** Vercel (Frontend), Docker Compose (Full Stack).
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Running Locally
 
-### Method A: Docker (Recommended)
 ```bash
-# 1. Clone repo
-git clone https://github.com/Spirit019/itantra-isro.git
-cd itantra-isro
+# Clone the repository
+git clone https://github.com/DakshG26/itantra-web.git
+cd itantra-web
 
-# 2. Launch full stack
-docker compose up --build
-```
-- Frontend UI: `http://localhost:5173`
-- Backend API: `http://localhost:8000/health`
+# Install frontend dependencies & run
+npm install
+npm run dev
 
----
-
-### Method B: Manual Setup
-
-#### 1. Python Backend
-```bash
+# (Optional) Run Python STT/TTS Backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
-
-#### 2. React Frontend
-```bash
-npm install
-npm run dev
-```
-
----
-
-## 🛠️ API Documentation
-
-| Endpoint | Type | Description |
-|---|---|---|
-| `GET /health` | REST | Service status, active radio config, and session metrics |
-| `POST /configure-radio` | REST | Dynamically adjust bitrate (bps) and Bit Error Rate (BER) |
-| `WS /ws/transceive` | WebSocket | Full-duplex real-time STT $\rightarrow$ Compression $\rightarrow$ TTS pipeline |
-
----
-
-## 🇮🇳 Supported Indic Languages
-- **Hindi (हिंदी)**
-- **Tamil (தமிழ்)**
-- **Marathi (मराठी)**
-- **Telugu (తెలుగు)**
-- **Bengali (বাংলা)**
-- **English (Indian Accent)**
-
----
-
-## 👥 Organization & Credits
-- **Problem ID:** SIH26173
-- **Organization:** Indian Space Research Organisation (ISRO)
-- **Built for:** Smart India Hackathon 2026 Grand Finale
