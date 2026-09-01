@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+
+# Android build & cache
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+
+# Python cache & venv
+__pycache__/
+*.pyc
+backend/__pycache__/
+.venv/
+venv/
