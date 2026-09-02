@@ -1,1 +1,391 @@
-/* Cleared unused styles */
+/* ─── Stitch Orbital Command Tactical Styles ─── */
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-space);
+  position: relative;
+}
+
+/* Header */
+.mission-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-outline);
+}
+
+.mission-ticker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-outline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--saffron-glow);
+  text-transform: uppercase;
+}
+
+.mission-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+}
+
+.brand-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.isro-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: var(--saffron-bg);
+  color: var(--saffron-primary);
+  border: 1px solid var(--border-outline-bright);
+  border-radius: 4px;
+}
+
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 16px 100px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Tactical Cards */
+.tactical-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-outline);
+  border-radius: 12px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* Network Spectrum Bars */
+.spectrum-bars-container {
+  height: 100px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3px;
+  padding: 8px 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid var(--border-outline);
+  margin-bottom: 8px;
+}
+
+.spectrum-bar {
+  flex: 1;
+  background: var(--border-outline);
+  border-radius: 2px 2px 0 0;
+  transition: height 0.4s ease, background-color 0.4s ease;
+}
+
+.spectrum-bar.active {
+  background: var(--saffron-primary);
+  box-shadow: 0 0 10px rgba(255, 157, 51, 0.5);
+}
+
+.spectrum-freqs {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* Neural Link Status Gauges */
+.neural-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.metric-box {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-outline);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+}
+
+.metric-progress {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.metric-fill-saffron {
+  height: 100%;
+  background: var(--saffron-primary);
+}
+
+.metric-fill-blue {
+  height: 100%;
+  background: var(--accent-blue);
+}
+
+/* Language Chips */
+.language-chips-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.lang-chip {
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid var(--border-outline);
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.lang-chip.active {
+  border-color: var(--saffron-primary);
+  background: var(--saffron-bg);
+  color: var(--saffron-primary);
+  box-shadow: 0 0 10px rgba(255, 157, 51, 0.2);
+}
+
+/* Chat Messages */
+.tactical-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.msg-bubble {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
+}
+
+.msg-incoming {
+  align-self: flex-start;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-outline);
+  border-top-left-radius: 2px;
+}
+
+.msg-outgoing {
+  align-self: flex-end;
+  background: var(--saffron-bg);
+  border: 1px solid var(--border-outline-bright);
+  border-top-right-radius: 2px;
+}
+
+.msg-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.msg-wave-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.wave-line {
+  width: 2px;
+  background: var(--saffron-primary);
+  border-radius: 1px;
+}
+
+.hex-token-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  color: var(--saffron-glow);
+  word-break: break-all;
+}
+
+/* Floating Push-To-Talk Button */
+.ptt-container {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+}
+
+.ptt-btn {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--saffron-primary);
+  border: 4px solid var(--bg-surface-highest);
+  box-shadow: 0 0 24px rgba(255, 157, 51, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  color: #2e1500;
+}
+
+.ptt-btn:active, .ptt-btn.recording {
+  transform: scale(0.94);
+  background: #ffb875;
+  box-shadow: 0 0 35px rgba(255, 157, 51, 0.8);
+}
+
+/* Bottom Glass Navigation Bar */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-outline);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 64px;
+  padding: 0 8px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.nav-item.active {
+  color: var(--saffron-primary);
+  background: var(--saffron-bg);
+}
+
+.nav-item:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+/* Modal Styling */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modal-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-outline-bright);
+  border-radius: 16px;
+  max-width: 650px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
