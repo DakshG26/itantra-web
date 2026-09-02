@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Radio, Mic, MicOff, Volume2, Zap, AlertTriangle, Layers,
@@ -6,14 +6,13 @@ import {
   ArrowRight, Server, WifiOff, Sliders,
   Copy, Check, Link, Wifi, MessageSquare, Users, Globe,
   RefreshCw, PhoneOff, Trash2, X, Info, Sparkles, Sun, Moon,
-  BarChart3, Settings, FileText, Terminal, Satellite
+  Terminal, Settings, Search, Lock, Power, RotateCcw,
+  Signal, BarChart2, CheckCircle
 } from 'lucide-react';
-import { TACTICAL_SAMPLES, HOW_IT_WORKS_INFO } from './data/samplesAndInfo';
 import { audioEngine } from './utils/audioEngine';
 import { usePeer } from './utils/usePeer';
 import './App.css';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 function fmtTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -30,49 +29,69 @@ function generateHexTokens(text) {
 }
 
 export default function App() {
-  // Navigation & Themes
+  // Navigation & Mode
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'logs', 'languages', 'config'
-  const [isSolarMode, setIsSolarMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [utcTime, setUtcTime] = useState('');
+
+  // Radio Config State
+  const [bitrate, setBitrate] = useState(1200);
+  const [fecEnabled, setFecEnabled] = useState(true);
+  const [aesEnabled, setAesEnabled] = useState(false);
+  const [macEnabled, setMacEnabled] = useState(true);
 
   // Transceiver State
   const [selectedLanguage, setSelectedLanguage] = useState('hi');
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [showArchModal, setShowArchModal] = useState(false);
-  const [showPairModal, setShowPairModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [isGlobalSyncing, setIsGlobalSyncing] = useState(false);
+
+  // Peer P2P Link State
   const [remotePeerInput, setRemotePeerInput] = useState('');
   const [copiedPeerId, setCopiedPeerId] = useState(false);
 
-  // Message Logs
+  // Tactical Chat Messages
   const [messages, setMessages] = useState([
     {
-      id: 'init-1',
-      senderId: 'ISRO-BASE-01',
-      text: 'बेस स्टेशन 4: उत्तरी सेक्टर में संचार लिंक सक्रिय। (24 bps)',
-      language: 'hi',
-      isSos: false,
+      id: 'log-1',
+      senderId: 'OP-ALPHA',
+      type: 'critical',
+      timeStr: '14:02:11 UTC',
+      text: 'Target visual confirmed at sector 4. Moving to intercept.',
+      language: 'en',
       timestamp: Date.now() - 120000,
-      tokensHex: generateHexTokens('बेस स्टेशन 4: उत्तरी सेक्टर में संचार लिंक सक्रिय।'),
+      tokensHex: generateHexTokens('Target visual confirmed at sector 4. Moving to intercept.'),
       isSentByMe: false
     },
     {
-      id: 'init-2',
-      senderId: 'OP-ALPHA',
-      text: 'Target visual confirmed at sector 4. Medical teams advancing.',
+      id: 'log-2',
+      senderId: 'COMMAND',
+      type: 'routine',
+      timeStr: '14:02:45 UTC',
+      text: 'Copy that. Proceed with caution. Medical unit on standby.',
       language: 'en',
-      isSos: false,
       timestamp: Date.now() - 45000,
-      tokensHex: generateHexTokens('Target visual confirmed at sector 4. Medical teams advancing.'),
+      tokensHex: generateHexTokens('Copy that. Proceed with caution. Medical unit on standby.'),
       isSentByMe: true
     }
   ]);
 
   // Spectrum Bars State
   const [spectrumBars, setSpectrumBars] = useState(() =>
-    Array.from({ length: 28 }, () => Math.floor(Math.random() * 80 + 10))
+    Array.from({ length: 32 }, () => Math.floor(Math.random() * 75 + 15))
   );
+
+  // Languages Database
+  const [languageList, setLanguageList] = useState([
+    { code: 'hi', name: 'Hindi (HIN)', label: 'Hindi Regional Core', id: 'ID:99X4', status: 'Active', size: '412 MB', progress: 100 },
+    { code: 'ta', name: 'Tamil (TAM)', label: 'Tamil Regional Core', id: 'ID:72A1', status: 'Standby', size: '389 MB', progress: 100 },
+    { code: 'mr', name: 'Marathi (MAR)', label: 'Marathi Regional Core', id: 'ID:44M2', status: 'Downloading', size: '245 / 450 MB', progress: 54 },
+    { code: 'te', name: 'Telugu (TEL)', label: 'Telugu Regional Core', id: 'ID:31T9', status: 'Standby', size: '350 MB', progress: 100 },
+    { code: 'bn', name: 'Bengali (BEN)', label: 'Bengali Regional Core', id: 'ID:11B8', status: 'Offline', size: '0 MB', progress: 0 },
+    { code: 'en', name: 'English (ENG)', label: 'English Tactical Core', id: 'ID:00E1', status: 'Active', size: '120 MB', progress: 100 }
+  ]);
 
   // WebRTC P2P Hook
   const {
@@ -85,7 +104,7 @@ export default function App() {
     sendMessageToPeer
   } = usePeer({
     onMessageReceived: (packet) => {
-      setMessages((prev) => [...prev, { ...packet, isSentByMe: false }]);
+      setMessages((prev) => [...prev, { ...packet, isSentByMe: false, timeStr: fmtTime(Date.now()) + ' UTC' }]);
       audioEngine.speak(packet.text, packet.language);
     }
   });
@@ -102,7 +121,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Animate Spectrum Bars
+  // Spectrum animation
   useEffect(() => {
     const interval = setInterval(() => {
       setSpectrumBars((prev) =>
@@ -112,7 +131,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Send Message Handler
+  // Send Message
   const handleSendMessage = (textToSend = inputText, isSos = false) => {
     const trimmed = textToSend.trim();
     if (!trimmed) return;
@@ -120,7 +139,9 @@ export default function App() {
     const hexTokens = generateHexTokens(trimmed);
     const newPacket = {
       id: `msg-${Date.now()}`,
-      senderId: myPeerId ? myPeerId.slice(0, 8).toUpperCase() : 'NODE-ALPHA',
+      senderId: myPeerId ? myPeerId.slice(0, 8).toUpperCase() : 'COMMAND',
+      type: isSos ? 'critical' : 'routine',
+      timeStr: fmtTime(Date.now()) + ' UTC',
       text: trimmed,
       language: selectedLanguage,
       isSos: isSos,
@@ -131,17 +152,14 @@ export default function App() {
 
     setMessages((prev) => [...prev, newPacket]);
     setInputText('');
-
-    // Broadcast over real WebRTC P2P
     sendMessageToPeer(newPacket);
 
-    // Speak locally if audio playback enabled
     if (!isSos) {
       audioEngine.speak(trimmed, selectedLanguage);
     }
   };
 
-  // Push-To-Talk Voice Handler
+  // Push-To-Talk Toggle
   const handlePttToggle = () => {
     if (isRecording) {
       setIsRecording(false);
@@ -155,16 +173,21 @@ export default function App() {
           setInputText(text);
           handleSendMessage(text, false);
         },
-        onError: (err) => {
+        onError: () => {
           setIsRecording(false);
         }
       });
     }
   };
 
-  const handleSosTrigger = () => {
-    const sosMsg = "🚨 EMERGENCY SOS: Level 0 Alert [Chamoli Sector 4 • GPS: 30.42°N, 79.33°E]";
-    handleSendMessage(sosMsg, true);
+  const playAudio = (id, text, lang) => {
+    if (playingAudioId === id) {
+      setPlayingAudioId(null);
+    } else {
+      setPlayingAudioId(id);
+      audioEngine.speak(text, lang || 'en');
+      setTimeout(() => setPlayingAudioId(null), 3000);
+    }
   };
 
   const copyMyId = () => {
@@ -175,145 +198,163 @@ export default function App() {
     }
   };
 
-  return (
-    <div className={`app-container ${isSolarMode ? 'solar-mode' : ''}`}>
-      <div className="scanline"></div>
+  const triggerGlobalSync = () => {
+    setIsGlobalSyncing(true);
+    setTimeout(() => {
+      setIsGlobalSyncing(false);
+      setLanguageList((prev) =>
+        prev.map((l) => (l.code === 'mr' ? { ...l, status: 'Active', progress: 100, size: '450 MB' } : l))
+      );
+    }, 1800);
+  };
 
-      {/* ─── Top Mission Header ─── */}
-      <header className="mission-header">
-        <div className="mission-ticker">
+  const filteredMessages = messages.filter((m) =>
+    m.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.senderId.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className={`app-container ${isDarkMode ? 'dark-mode' : ''}`}>
+      {/* ─── Top Mission Glass Header ─── */}
+      <header className="tactical-glass-header">
+        <div className="mission-ticker-bar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--status-active)', display: 'inline-block' }}></span>
-            <span>MISSION ACTIVE • 24 BPS RF LINK</span>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }}></span>
+            <span>MISSION ACTIVE</span>
           </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <span>SAVINGS: 2,666×</span>
+          <div style={{ display: 'flex', gap: '16px', color: 'var(--on-surface-variant)' }}>
+            <span>{(bitrate / 1000).toFixed(1)} kbps</span>
             <span>{utcTime || '00:00:00 UTC'}</span>
           </div>
         </div>
 
-        <div className="mission-nav-bar">
-          <div className="brand-badge">
-            <Radio size={22} color="var(--saffron-primary)" />
-            <span className="brand-title">iTANTRA</span>
-            <span className="isro-pill">ISRO SIH26173</span>
+        <div className="header-main-bar">
+          <div className="brand-section">
+            <Radio size={22} color="var(--primary)" />
+            <span className="brand-heading">
+              {activeTab === 'dashboard' && 'Dashboard'}
+              {activeTab === 'logs' && 'Transceiver Log'}
+              {activeTab === 'languages' && 'Languages'}
+              {activeTab === 'config' && 'Config'}
+            </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={() => setShowArchModal(true)}
-              className="lang-chip"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="lang-btn"
+              style={{ padding: '6px 10px', fontSize: '12px' }}
+              title="Toggle Tactical Dark / Light Mode"
             >
-              <Activity size={12} />
-              <span>369ms Budget</span>
+              {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
             </button>
 
-            <button
-              onClick={() => setShowPairModal(true)}
-              className={`lang-chip ${connectionStatus === 'connected' ? 'active' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'var(--primary-fixed)',
+                border: '1px solid var(--outline-variant)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '700',
+                fontSize: '12px',
+                color: 'var(--primary)'
+              }}
             >
-              <Link size={12} />
-              <span>{connectionStatus === 'connected' ? 'Linked P2P' : 'Pair Node'}</span>
-            </button>
-
-            <button
-              onClick={() => setIsSolarMode(!isSolarMode)}
-              className="lang-chip"
-              style={{ padding: '6px 8px' }}
-              title="Toggle Solar / Dark Mode"
-            >
-              {isSolarMode ? <Moon size={14} /> : <Sun size={14} />}
-            </button>
+              ISRO
+            </div>
           </div>
         </div>
       </header>
 
-      {/* ─── Main Content Tabs ─── */}
-      <main className="main-content">
+      {/* ─── Page Main Content ─── */}
+      <main className="page-main">
+        {/* ══════════════════════════════════════════════════
+            TAB 1: DASHBOARD (Clean Tech)
+           ══════════════════════════════════════════════════ */}
         {activeTab === 'dashboard' && (
           <>
-            {/* 1. Network Spectrum Visualization Card */}
-            <section className="tactical-card">
-              <div className="card-header">
-                <div className="card-title">
-                  <Satellite size={16} color="var(--saffron-primary)" />
-                  <span>Network Spectrum • Tactical RF Uplink</span>
+            {/* 1. Network Spectrum Visualization */}
+            <section className="clean-card">
+              <div className="card-header-clean">
+                <div className="card-header-title">
+                  <Signal size={18} color="var(--primary)" />
+                  <span>Network Spectrum</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: 'var(--status-active)', fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--status-active)' }}></span>
-                  <span>ACTIVE (24 BPS)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--primary-fixed)', padding: '3px 8px', borderRadius: '9999px', fontSize: '10px', fontWeight: '700', color: 'var(--primary)' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }}></span>
+                  <span>UPLINK ACTIVE</span>
                 </div>
               </div>
 
-              <div className="spectrum-bars-container">
-                {spectrumBars.map((height, idx) => (
-                  <div
-                    key={idx}
-                    className={`spectrum-bar ${height > 65 ? 'active' : ''}`}
-                    style={{ height: `${height}%` }}
-                  />
+              <div className="spectrum-box">
+                {spectrumBars.map((h, i) => (
+                  <div key={i} className={`spectrum-col ${h > 65 ? 'high' : ''}`} style={{ height: `${h}%` }} />
                 ))}
               </div>
 
-              <div className="spectrum-freqs">
-                <span>30 MHz (VHF)</span>
-                <span>150 MHz (ISRO Tactical)</span>
-                <span>300 MHz (UHF LoRa)</span>
-                <span>450 MHz (Satellite)</span>
+              <div className="freq-labels">
+                <span>30 MHz</span>
+                <span>150 MHz</span>
+                <span>300 MHz</span>
+                <span>450 MHz</span>
               </div>
             </section>
 
-            {/* 2. Neural Link Status & Dialect Chips */}
-            <section className="tactical-card">
-              <div className="card-header">
+            {/* 2. Neural Link Panel */}
+            <section className="clean-card">
+              <div className="card-header-clean">
                 <div>
-                  <div className="card-title">Neural Link Status</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    Air-gapped 18-byte neural quantization core active
+                  <div className="card-header-title">Neural Link Status</div>
+                  <div style={{ fontSize: '12px', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
+                    Real-time translation core active
                   </div>
                 </div>
-                <span className="isro-pill">SYS-OP: OK</span>
+                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--primary)', background: 'var(--primary-fixed)', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--primary-fixed-dim)' }}>
+                  SYS-OP: OK
+                </span>
               </div>
 
-              <div className="neural-metrics-grid">
-                <div className="metric-box">
-                  <div className="metric-label">
+              <div className="neural-status-grid">
+                <div className="stat-cell">
+                  <div className="stat-cell-header">
                     <span>INCOMING (STT)</span>
-                    <Volume2 size={14} color="var(--accent-blue)" />
+                    <Volume2 size={16} color="var(--tertiary-container)" />
                   </div>
-                  <div className="metric-value" style={{ color: 'var(--accent-blue)' }}>98.4%</div>
-                  <div className="metric-progress">
-                    <div className="metric-fill-blue" style={{ width: '98.4%' }}></div>
+                  <div className="stat-cell-num">98.4<span style={{ fontSize: '14px', color: 'var(--on-surface-variant)' }}>%</span></div>
+                  <div className="stat-bar-track">
+                    <div className="stat-bar-fill" style={{ width: '98.4%' }}></div>
                   </div>
                 </div>
 
-                <div className="metric-box">
-                  <div className="metric-label">
+                <div className="stat-cell">
+                  <div className="stat-cell-header">
                     <span>OUTGOING (TTS)</span>
-                    <Zap size={14} color="var(--saffron-primary)" />
+                    <Zap size={16} color="var(--primary)" />
                   </div>
-                  <div className="metric-value" style={{ color: 'var(--saffron-primary)' }}>99.1%</div>
-                  <div className="metric-progress">
-                    <div className="metric-fill-saffron" style={{ width: '99.1%' }}></div>
+                  <div className="stat-cell-num">99.1<span style={{ fontSize: '14px', color: 'var(--on-surface-variant)' }}>%</span></div>
+                  <div className="stat-bar-track">
+                    <div className="stat-bar-fill" style={{ width: '99.1%' }}></div>
                   </div>
                 </div>
               </div>
 
-              {/* Indic Language Chips */}
-              <div className="language-chips-scroll">
+              {/* Language Chips */}
+              <div className="lang-chip-row">
                 {[
-                  { code: 'hi', label: 'HINDI (हिंदी)' },
-                  { code: 'en', label: 'ENGLISH' },
-                  { code: 'ta', label: 'TAMIL (தமிழ்)' },
-                  { code: 'mr', label: 'MARATHI (मराठी)' },
-                  { code: 'te', label: 'TELUGU (తెలుగు)' },
-                  { code: 'bn', label: 'BENGALI (বাংলা)' }
+                  { code: 'en', label: 'English' },
+                  { code: 'hi', label: 'Hindi' },
+                  { code: 'ta', label: 'Tamil' },
+                  { code: 'te', label: 'Telugu' },
+                  { code: 'mr', label: 'Marathi' },
+                  { code: 'bn', label: 'Bengali' }
                 ].map((item) => (
                   <button
                     key={item.code}
-                    className={`lang-chip ${selectedLanguage === item.code ? 'active' : ''}`}
+                    className={`lang-btn ${selectedLanguage === item.code ? 'active' : ''}`}
                     onClick={() => setSelectedLanguage(item.code)}
                   >
                     {item.label}
@@ -322,17 +363,17 @@ export default function App() {
               </div>
             </section>
 
-            {/* 3. Indic Emergency Presets Bar */}
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+            {/* 3. Indic Emergency Presets */}
+            <div className="lang-chip-row">
               {[
-                { label: '🇮🇳 Chamoli Cloudburst', text: 'चमोली में बादल फटा है, तुरंत मेडिकल टीम भेजो।', lang: 'hi' },
+                { label: '🇮🇳 Chamoli Alert', text: 'चमोली में बादल फटा है, तुरंत मेडिकल टीम भेजो।', lang: 'hi' },
                 { label: '🌊 Coastal Rescue', text: 'கப்பல் புயலில் சிக்கியுள்ளது, மீட்புப் படகை அனுப்புங்கள்.', lang: 'ta' },
                 { label: '⛰️ Ghats Landslide', text: 'घाटमाथ्यावर दरड कोसळली आहे, रस्ता बंद आहे.', lang: 'mr' },
                 { label: '📡 ISRO Base Command', text: 'Base Station 4, oxygen supply critical, initiate evacuation plan.', lang: 'en' }
               ].map((p, idx) => (
                 <button
                   key={idx}
-                  className="lang-chip"
+                  className="lang-btn"
                   onClick={() => {
                     setSelectedLanguage(p.lang);
                     handleSendMessage(p.text, false);
@@ -343,46 +384,49 @@ export default function App() {
               ))}
             </div>
 
-            {/* 4. Tactical Communications Thread */}
-            <section className="tactical-card" style={{ flex: 1, minHeight: '300px' }}>
-              <div className="card-header">
-                <div className="card-title">
-                  <MessageSquare size={16} color="var(--saffron-primary)" />
-                  <span>Tactical Comms Stream ({messages.length} Packets)</span>
+            {/* 4. Tactical Chat */}
+            <section className="clean-card" style={{ flex: 1, minHeight: '300px' }}>
+              <div className="card-header-clean">
+                <div className="card-header-title">
+                  <MessageSquare size={16} color="var(--primary)" />
+                  <span>Tactical Messages ({messages.length})</span>
                 </div>
                 <button
                   onClick={() => setMessages([])}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer' }}
                   title="Clear Log"
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
 
-              <div className="tactical-chat-list">
+              <div className="chat-thread-container">
                 {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`msg-bubble ${m.isSentByMe ? 'msg-outgoing' : 'msg-incoming'} ${m.isSos ? 'msg-sos' : ''}`}
-                  >
-                    <div className="msg-meta">
-                      <span>{m.senderId} • {fmtTime(m.timestamp)}</span>
+                  <div key={m.id} className={`chat-bubble ${m.isSentByMe ? 'out' : 'in'}`}>
+                    <div className="chat-bubble-top">
+                      <span>{m.senderId} • {m.timeStr || fmtTime(m.timestamp)}</span>
                       <button
-                        onClick={() => audioEngine.speak(m.text, m.language)}
-                        style={{ background: 'none', border: 'none', color: 'var(--saffron-primary)', cursor: 'pointer' }}
-                        title="Replay Audio"
+                        onClick={() => playAudio(m.id, m.text, m.language)}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600' }}
                       >
                         <Volume2 size={12} />
+                        <span>{playingAudioId === m.id ? 'Playing...' : 'Play Audio'}</span>
                       </button>
                     </div>
 
-                    <div style={{ fontSize: '14px', fontWeight: '500', color: m.isSentByMe ? 'var(--text-primary)' : 'var(--text-primary)' }}>
-                      {m.text}
+                    <div className="audio-sim-wave">
+                      <div className="audio-sim-bar" style={{ height: '6px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '14px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '10px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '16px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '8px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '12px' }}></div>
+                      <div className="audio-sim-bar" style={{ height: '6px' }}></div>
+                      <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--on-surface-variant)' }}>0:04</span>
                     </div>
 
-                    <div className="hex-token-badge">
-                      📦 18B: {m.tokensHex}
-                    </div>
+                    <p style={{ fontSize: '14px', color: 'var(--on-surface)' }}>{m.text}</p>
+                    <div className="token-pill">📦 18B Token: {m.tokensHex}</div>
                   </div>
                 ))}
               </div>
@@ -390,280 +434,450 @@ export default function App() {
           </>
         )}
 
-        {/* ─── TAB: LOGS ─── */}
+        {/* ══════════════════════════════════════════════════
+            TAB 2: TRANSCEIVER LOGS (Clean Tech)
+           ══════════════════════════════════════════════════ */}
         {activeTab === 'logs' && (
-          <section className="tactical-card">
-            <div className="card-header">
-              <div className="card-title">
-                <Terminal size={16} color="var(--saffron-primary)" />
-                <span>RF Telemetry & Packet Hex Stream</span>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Search Bar */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search size={18} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--on-surface-variant)' }} />
+              <input
+                type="text"
+                placeholder="Search database..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px 12px 38px',
+                  background: 'var(--bg-surface-card)',
+                  border: '1px solid var(--outline-variant)',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  color: 'var(--on-surface)',
+                  outline: 'none',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}
+              />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {messages.map((m, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-outline)',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--saffron-primary)', marginBottom: '4px' }}>
-                    <span>PACKET #{idx + 1} • {m.senderId}</span>
-                    <span>{fmtTime(m.timestamp)}</span>
-                  </div>
-                  <div style={{ color: 'var(--text-primary)', marginBottom: '6px' }}>"{m.text}"</div>
-                  <div style={{ color: 'var(--text-dim)', fontSize: '11px', wordBreak: 'break-all' }}>
-                    Hex Payload: <span style={{ color: 'var(--saffron-glow)' }}>{m.tokensHex}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '16px', marginTop: '6px', fontSize: '10px', color: 'var(--status-active)' }}>
-                    <span>Size: 18 Bytes</span>
-                    <span>Bitrate: 24 bps</span>
-                    <span>CRC16: VALID ✓</span>
-                    <span>Bandwidth Savings: 2,666×</span>
-                  </div>
+            {/* Log Entries */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Critical Entry */}
+              <div className="clean-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--error)', background: 'var(--error-container)', padding: '2px 8px', borderRadius: '4px' }}>
+                    Incoming (Critical)
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--on-surface-variant)' }}>Received - 23:41:09 UTC</span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ─── TAB: LANGUAGES ─── */}
-        {activeTab === 'languages' && (
-          <section className="tactical-card">
-            <div className="card-header">
-              <div className="card-title">
-                <Globe size={16} color="var(--saffron-primary)" />
-                <span>Multilingual Neural Accents & Models</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {[
-                { name: 'Hindi (हिंदी)', dialect: 'Standard Northern Devanagari', acc: '98.8%', engine: 'Bhashini + Whisper' },
-                { name: 'Tamil (தமிழ்)', dialect: 'Dravidian Tactical Coast', acc: '98.1%', engine: 'Bhashini ULCA API' },
-                { name: 'Marathi (मराठी)', dialect: 'Sahyadri Terrain Mesh', acc: '97.9%', engine: 'Offline Android TTS' },
-                { name: 'Telugu (తెలుగు)', dialect: 'Eastern Ghats Grid', acc: '98.2%', engine: 'Bhashini ULCA API' },
-                { name: 'Bengali (বাংলা)', dialect: 'Delta Flood Radar', acc: '97.8%', engine: 'Offline Android TTS' },
-                { name: 'English (Indian)', dialect: 'ISRO Aerospace Tactical', acc: '99.4%', engine: 'Faster-Whisper Tiny' }
-              ].map((lang, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-outline)',
-                    borderRadius: '8px',
-                    padding: '12px'
-                  }}
-                >
-                  <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>{lang.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', margin: '4px 0' }}>{lang.dialect}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--saffron-primary)', fontFamily: 'var(--font-mono)' }}>
-                    <span>Accuracy: {lang.acc}</span>
-                    <span>{lang.engine}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ─── TAB: CONFIG ─── */}
-        {activeTab === 'config' && (
-          <section className="tactical-card">
-            <div className="card-header">
-              <div className="card-title">
-                <Settings size={16} color="var(--saffron-primary)" />
-                <span>System Configuration & Device Pairing</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="metric-box">
-                <div className="metric-label">YOUR LOCAL RADIO NODE ID</div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
-                  <input
-                    type="text"
-                    readOnly
-                    value={myPeerId || 'Initializing...'}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid var(--border-outline)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px'
-                    }}
-                  />
-                  <button onClick={copyMyId} className="lang-chip" style={{ padding: '8px 12px' }}>
-                    {copiedPeerId ? <Check size={14} color="var(--status-active)" /> : <Copy size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="metric-box">
-                <div className="metric-label">CONNECT TO REMOTE PEER NODE</div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
-                  <input
-                    type="text"
-                    placeholder="Paste remote Node Peer ID..."
-                    value={remotePeerInput}
-                    onChange={(e) => setRemotePeerInput(e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid var(--border-outline)',
-                      borderRadius: '6px',
-                      color: 'var(--text-primary)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px'
-                    }}
-                  />
+                <p style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--on-surface)' }}>
+                  Proximity alert trigger on external sensor array C-4. Heat signature detected exceeding normal operational parameters by 400%. Recommending immediate manual override of coolant system.
+                </p>
+                <div>
                   <button
-                    onClick={() => connectToPeer(remotePeerInput)}
-                    className="lang-chip active"
-                    style={{ padding: '8px 16px' }}
+                    onClick={() => playAudio('crit-1', 'Proximity alert trigger on external sensor array C-4. Heat signature detected.', 'en')}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '500' }}
                   >
-                    Link Node
+                    <Volume2 size={18} />
+                    <span>{playingAudioId === 'crit-1' ? 'Playing...' : 'Play Audio'}</span>
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-                <QRCodeSVG value={myPeerId || 'https://itantra-isro.vercel.app'} size={140} fgColor="#ff9d33" bgColor="transparent" />
+              {/* Filtered Messages */}
+              {filteredMessages.map((m) => (
+                <div key={m.id} className="clean-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--on-surface-variant)', background: 'var(--bg-surface-container)', padding: '2px 8px', borderRadius: '4px' }}>
+                      {m.isSentByMe ? 'Outgoing' : 'Incoming'} ({m.senderId})
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--on-surface-variant)' }}>Received - {m.timeStr || fmtTime(m.timestamp)}</span>
+                  </div>
+                  <p style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--on-surface)' }}>{m.text}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button
+                      onClick={() => playAudio(m.id, m.text, m.language)}
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '500' }}
+                    >
+                      <Volume2 size={18} />
+                      <span>{playingAudioId === m.id ? 'Playing...' : 'Play Audio'}</span>
+                    </button>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--on-surface-variant)' }}>18 Bytes • 24 bps</span>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={() => {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: `old-${Date.now()}`,
+                      senderId: 'BETA-2',
+                      type: 'routine',
+                      timeStr: '22:15:00 UTC',
+                      text: 'Hourly telemetry packet received. All life support nominal. Entering communication shadow in T-minus 14 minutes.',
+                      language: 'en',
+                      timestamp: Date.now() - 3600000,
+                      tokensHex: generateHexTokens('Hourly telemetry packet received. All life support nominal.'),
+                      isSentByMe: false
+                    }
+                  ]);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid var(--outline-variant)',
+                  borderRadius: '12px',
+                  background: 'var(--bg-surface-card)',
+                  color: 'var(--primary)',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}
+              >
+                Load Older Logs
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            TAB 3: LANGUAGE MANAGEMENT (Clean Tech)
+           ══════════════════════════════════════════════════ */}
+        {activeTab === 'languages' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {languageList.map((item) => (
+              <div key={item.code} className="clean-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--on-surface)' }}>{item.name}</span>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)', background: 'var(--bg-surface-container)', padding: '2px 8px', borderRadius: '9999px' }}>
+                    {item.id}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', color: 'var(--on-surface-variant)' }}>{item.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                      <span
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: item.status === 'Active' ? 'var(--primary)' : item.status === 'Downloading' ? 'var(--primary-container)' : item.status === 'Standby' ? 'var(--secondary)' : 'var(--outline)'
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', fontWeight: '500', color: item.status === 'Active' ? 'var(--primary)' : 'var(--on-surface-variant)' }}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '13px', color: 'var(--on-surface-variant)' }}>{item.size}</span>
+                </div>
+
+                {item.status === 'Downloading' && (
+                  <div style={{ width: '100%', height: '6px', background: 'var(--bg-surface-container)', borderRadius: '9999px', overflow: 'hidden', marginTop: '4px' }}>
+                    <div style={{ width: `${item.progress}%`, height: '100%', background: 'var(--primary-container)', borderRadius: '9999px', transition: 'width 0.4s ease' }}></div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={triggerGlobalSync}
+              disabled={isGlobalSyncing}
+              style={{
+                width: '100%',
+                padding: '14px',
+                marginTop: '12px',
+                background: 'var(--primary)',
+                color: 'var(--on-primary)',
+                border: 'none',
+                borderRadius: '9999px',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0, 71, 141, 0.25)'
+              }}
+            >
+              <RefreshCw size={18} className={isGlobalSyncing ? 'animate-spin' : ''} />
+              <span>{isGlobalSyncing ? 'Synchronizing Neural Models…' : 'Global Sync'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            TAB 4: SYSTEM CONFIGURATION (Clean Tech)
+           ══════════════════════════════════════════════════ */}
+        {activeTab === 'config' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Radio Protocol Card */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--outline-variant)', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--on-surface-variant)', textTransform: 'uppercase' }}>Radio Protocol</span>
+                <span style={{ fontSize: '11px', color: 'var(--secondary)' }}>V.3.92-BETA</span>
+              </div>
+
+              <div className="clean-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '14px', color: 'var(--on-surface)' }}>Uplink Bitrate</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--primary)' }}>
+                      {bitrate >= 1000 ? `${(bitrate / 1000).toFixed(1)} kbps` : `${bitrate} bps`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="128"
+                    max="2400"
+                    value={bitrate}
+                    onChange={(e) => setBitrate(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--primary)' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
+                    <span>128bps</span>
+                    <span>2.4kbps</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--outline-variant)', paddingTop: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', color: 'var(--on-surface)' }}>Error Correction (FEC)</div>
+                    <div style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>Reed-Solomon RS(255,223)</div>
+                  </div>
+                  <button
+                    className={`toggle-switch ${fecEnabled ? 'on' : ''}`}
+                    onClick={() => setFecEnabled(!fecEnabled)}
+                  >
+                    <div className="toggle-knob" />
+                  </button>
+                </div>
               </div>
             </div>
-          </section>
+
+            {/* Neural Parameters */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--outline-variant)', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--on-surface-variant)', textTransform: 'uppercase' }}>Neural Parameters</span>
+                <span style={{ fontSize: '11px', color: 'var(--secondary)' }}>ACTIVE</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="clean-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '110px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>MODEL TEMP</span>
+                  <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--on-surface)' }}>0.72°</div>
+                  <div style={{ width: '100%', height: '5px', background: 'var(--bg-surface-container)', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{ width: '72%', height: '100%', background: 'var(--primary)', borderRadius: '9999px' }}></div>
+                  </div>
+                </div>
+
+                <div className="clean-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '110px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>INFERENCE SPEED</span>
+                  <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--on-surface)' }}>45 ms</div>
+                  <div style={{ width: '100%', height: '5px', background: 'var(--bg-surface-container)', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{ width: '45%', height: '100%', background: 'var(--primary)', borderRadius: '9999px' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Security Card */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--outline-variant)', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--on-surface-variant)', textTransform: 'uppercase' }}>Security</span>
+                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--error)' }}>RESTRICTED</span>
+              </div>
+
+              <div className="clean-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'var(--error-container)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-error-container)' }}>
+                      <Lock size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', color: 'var(--on-surface)' }}>AES-256 Encryption</div>
+                      <div style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>Hardware Accelerated</div>
+                    </div>
+                  </div>
+                  <button
+                    className={`toggle-switch ${aesEnabled ? 'on' : ''}`}
+                    onClick={() => setAesEnabled(!aesEnabled)}
+                  >
+                    <div className="toggle-knob" />
+                  </button>
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--outline-variant)' }}></div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', color: 'var(--on-surface)' }}>Strict MAC Verification</div>
+                    <div style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>Drop malformed packets</div>
+                  </div>
+                  <button
+                    className={`toggle-switch ${macEnabled ? 'on' : ''}`}
+                    onClick={() => setMacEnabled(!macEnabled)}
+                  >
+                    <div className="toggle-knob" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Telemetry Stats Grid */}
+            <div className="clean-card">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>PACKET LOSS</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: 'var(--on-surface)', marginTop: '2px' }}>0.02%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>UPLINK STABILITY</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: 'var(--on-surface)', marginTop: '2px' }}>99.9%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>LATENCY</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: 'var(--on-surface)', marginTop: '2px' }}>112ms</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)' }}>TX POWER</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: 'var(--on-surface)', marginTop: '2px' }}>24 dBm</div>
+                </div>
+              </div>
+            </div>
+
+            {/* WebRTC Peer Pairing */}
+            <div className="clean-card">
+              <div className="card-header-clean">
+                <div className="card-header-title">
+                  <Link size={16} color="var(--primary)" />
+                  <span>P2P Node Pairing</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>YOUR LOCAL NODE ID</div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={myPeerId || 'Initializing P2P...'}
+                      style={{ flex: 1, padding: '8px', background: 'var(--bg-surface-low)', border: '1px solid var(--outline-variant)', borderRadius: '8px', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                    />
+                    <button onClick={copyMyId} className="lang-btn" style={{ padding: '8px 12px' }}>
+                      {copiedPeerId ? <Check size={14} color="var(--primary)" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>CONNECT TO REMOTE NODE</div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      placeholder="Paste remote Node ID..."
+                      value={remotePeerInput}
+                      onChange={(e) => setRemotePeerInput(e.target.value)}
+                      style={{ flex: 1, padding: '8px', background: 'var(--bg-surface-low)', border: '1px solid var(--outline-variant)', borderRadius: '8px', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                    />
+                    <button onClick={() => connectToPeer(remotePeerInput)} className="lang-btn active">
+                      Link Node
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hard Reset Button */}
+            <button
+              onClick={() => {
+                setBitrate(1200);
+                setFecEnabled(true);
+                setAesEnabled(false);
+                setMacEnabled(true);
+                setMessages([]);
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'var(--error)',
+                color: 'var(--on-error)',
+                border: 'none',
+                borderRadius: '9999px',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(186, 26, 26, 0.25)'
+              }}
+            >
+              <Power size={18} />
+              <span>Initiate Hard Reset</span>
+            </button>
+          </div>
         )}
       </main>
 
-      {/* ─── Bottom Floating PTT Bar ─── */}
-      <div className="ptt-container">
-        <button
-          className={`ptt-btn ${isRecording ? 'recording' : ''}`}
-          onClick={handlePttToggle}
-          title="Push To Talk"
-        >
-          {isRecording ? <MicOff size={28} /> : <Mic size={28} />}
-          <span style={{ fontSize: '9px', fontWeight: '800', fontFamily: 'var(--font-mono)' }}>
-            {isRecording ? 'REC…' : 'PTT'}
-          </span>
-        </button>
-      </div>
+      {/* ─── Floating Push-To-Talk Button (Only on Dashboard) ─── */}
+      {activeTab === 'dashboard' && (
+        <div className="floating-ptt-wrap">
+          <button
+            className={`ptt-main-circle ${isRecording ? 'recording' : ''}`}
+            onClick={handlePttToggle}
+          >
+            <div className="ptt-inner-button">
+              {isRecording ? <MicOff size={28} /> : <Mic size={28} />}
+            </div>
+          </button>
+          <span className="ptt-label-pill">{isRecording ? 'Listening…' : 'Hold to Speak'}</span>
+        </div>
+      )}
 
       {/* ─── Bottom Navigation Bar ─── */}
-      <nav className="bottom-nav">
+      <nav className="bottom-glass-nav">
         <div
-          className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          className={`nav-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
         >
-          <Radio size={18} />
-          <span>DASHBOARD</span>
+          <Radio size={22} />
+          <span>Dashboard</span>
         </div>
 
         <div
-          className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
+          className={`nav-tab-btn ${activeTab === 'logs' ? 'active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
-          <Terminal size={18} />
-          <span>LOGS</span>
+          <Terminal size={22} />
+          <span>Logs</span>
         </div>
 
         <div
-          className={`nav-item ${activeTab === 'languages' ? 'active' : ''}`}
+          className={`nav-tab-btn ${activeTab === 'languages' ? 'active' : ''}`}
           onClick={() => setActiveTab('languages')}
         >
-          <Globe size={18} />
-          <span>LANGUAGES</span>
+          <Globe size={22} />
+          <span>Languages</span>
         </div>
 
         <div
-          className={`nav-item ${activeTab === 'config' ? 'active' : ''}`}
+          className={`nav-tab-btn ${activeTab === 'config' ? 'active' : ''}`}
           onClick={() => setActiveTab('config')}
         >
-          <Settings size={18} />
-          <span>CONFIG</span>
+          <Settings size={22} />
+          <span>Config</span>
         </div>
       </nav>
-
-      {/* ─── Architecture & 369ms Latency Modal ─── */}
-      {showArchModal && (
-        <div className="modal-overlay" onClick={() => setShowArchModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                ⚡ 369ms Latency Budget & 18-Byte Packet
-              </div>
-              <button onClick={() => setShowArchModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.5' }}>
-              <div style={{ padding: '12px', background: 'var(--bg-surface-elevated)', borderRadius: '8px', border: '1px solid var(--border-outline)' }}>
-                <strong style={{ color: 'var(--saffron-primary)' }}>1. Speech-to-Text (STT):</strong> Faster-Whisper / On-Device ASR (120ms)
-              </div>
-              <div style={{ padding: '12px', background: 'var(--bg-surface-elevated)', borderRadius: '8px', border: '1px solid var(--border-outline)' }}>
-                <strong style={{ color: 'var(--saffron-primary)' }}>2. Neural Tokenizer:</strong> 18-Byte Quantization + CRC16 (8ms) • 2,666× savings
-              </div>
-              <div style={{ padding: '12px', background: 'var(--bg-surface-elevated)', borderRadius: '8px', border: '1px solid var(--border-outline)' }}>
-                <strong style={{ color: 'var(--saffron-primary)' }}>3. 24 bps RF Transmission:</strong> LoRa / Tactical HF Link (18ms)
-              </div>
-              <div style={{ padding: '12px', background: 'var(--bg-surface-elevated)', borderRadius: '8px', border: '1px solid var(--border-outline)' }}>
-                <strong style={{ color: 'var(--saffron-primary)' }}>4. Neural Voice Synthesis:</strong> Bhashini / On-Device Indic TTS (223ms)
-              </div>
-              <div style={{ textAlign: 'center', marginTop: '8px', fontWeight: '700', color: 'var(--status-active)', fontFamily: 'var(--font-mono)' }}>
-                TOTAL PIPELINE LATENCY: 369 ms (Real-Time Voice Grade)
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── P2P Pairing Modal ─── */}
-      {showPairModal && (
-        <div className="modal-overlay" onClick={() => setShowPairModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                🔗 Pair Radio Nodes (Zero-Server WebRTC)
-              </div>
-              <button onClick={() => setShowPairModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="metric-box">
-                <div className="metric-label">YOUR NODE ID</div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  <input
-                    type="text"
-                    readOnly
-                    value={myPeerId || 'Initializing...'}
-                    style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-outline)', borderRadius: '6px', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
-                  />
-                  <button onClick={copyMyId} className="lang-chip">
-                    {copiedPeerId ? <Check size={14} color="var(--status-active)" /> : <Copy size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '12px' }}>
-                <QRCodeSVG value={myPeerId || 'https://itantra-isro.vercel.app'} size={150} fgColor="#ff9d33" bgColor="transparent" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
